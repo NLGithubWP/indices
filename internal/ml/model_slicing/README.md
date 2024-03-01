@@ -2,7 +2,7 @@
 
 # Powering In-Database Dynamic Model Slicing for Structured Data Analytics
 
-The general model based on LEADS is at (algorithm)[https://github.com/Zrealshadow/SAMS/tree/f0570730563e7e05e073d5b7eaedabebe6286f56]
+The general model based on LEADS is at [algorithm](https://github.com/Zrealshadow/SAMS/tree/f0570730563e7e05e073d5b7eaedabebe6286f56)
 
 # Envs
 
