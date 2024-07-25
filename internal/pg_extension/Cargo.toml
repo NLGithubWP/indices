@@ -26,6 +26,7 @@ log = "0.4.14"
 serde = "1.0"
 serde_derive = "1.0"
 shared_memory = "0.12.4"
+sysinfo = "0.21.0"
 
 [dev-dependencies]
 pgrx-tests = "=0.9.7"

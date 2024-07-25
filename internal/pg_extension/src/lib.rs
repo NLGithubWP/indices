@@ -4,6 +4,8 @@ use serde_json::json;
 use std::collections::HashMap;
 
 pub mod bindings;
+pub mod utils;
+
 extern crate serde_derive;
 
 /*
@@ -162,9 +164,8 @@ pub fn benchmark_filtering_phase_latency(explore_models: i32, config_file: Strin
 #[allow(unused_variables)]
 pub fn benchmark_filtering_latency_in_db(
     explore_models: i32, dataset: String, batch_size_m: i32, config_file: String) -> String {
-    crate::bindings::ms::benchmark_filtering_latency_in_db(explore_models, &dataset, batch_size_m ,&config_file).to_string()
+    crate::bindings::ms::benchmark_filtering_latency_in_db(explore_models, &dataset, batch_size_m, &config_file).to_string()
 }
-
 
 
 // Model Inference
@@ -259,6 +260,29 @@ pub fn inference_shared_write_once_int(
         batch_size).to_string()
 }
 
+// Model Inference
+#[cfg(feature = "python")]
+#[pg_extern(immutable, parallel_safe, name = "run_inference_shared_memory_write_once_int_join")]
+#[allow(unused_variables)]
+pub fn run_inference_shared_memory_write_once_int_join(
+    dataset: String,
+    condition: String,
+    config_file: String,
+    col_cardinalities_file: String,
+    model_path: String,
+    sql: String,
+    batch_size: i32,
+) -> String {
+    crate::bindings::inference::run_inference_shared_memory_write_once_int_join(
+        &dataset,
+        &condition,
+        &config_file,
+        &col_cardinalities_file,
+        &model_path,
+        &sql,
+        batch_size).to_string()
+}
+
 
 // Model Inference
 #[cfg(feature = "python")]
@@ -268,11 +292,100 @@ pub fn model_init(
     condition: String,
     config_file: String,
     col_cardinalities_file: String,
-    model_path: String
+    model_path: String,
 ) -> String {
     crate::bindings::inference::init_model(
         &condition,
         &config_file,
         &col_cardinalities_file,
         &model_path).to_string()
+}
+
+
+// Model Inference
+#[cfg(feature = "python")]
+#[pg_extern(immutable, parallel_safe, name = "run_inference_profiling")]
+#[allow(unused_variables)]
+pub fn run_inference_profiling(
+    func_num: i32,
+    dataset: String,
+    condition: String,
+    config_file: String,
+    col_cardinalities_file: String,
+    model_path: String,
+    sql: String,
+    batch_size: i32,
+) -> String {
+    match func_num {
+        1 => match crate::bindings::inference::run_inference_w_all_opt_workloads(
+            &dataset,
+            &condition,
+            &config_file,
+            &col_cardinalities_file,
+            &model_path,
+            &sql,
+            batch_size,
+        ) {
+            Ok(_) => serde_json::json!("ok").to_string(),
+            Err(e) => serde_json::json!({ "error": format!("Error: {}", e) }).to_string(),
+        },
+
+        // without model caching
+        2 => match crate::bindings::inference::run_inference_wo_cache_workloads(
+            &dataset,
+            &condition,
+            &config_file,
+            &col_cardinalities_file,
+            &model_path,
+            &sql,
+            batch_size,
+        ) {
+            Ok(_) => serde_json::json!("ok").to_string(),
+            Err(e) => serde_json::json!({ "error": format!("Error: {}", e) }).to_string(),
+        },
+
+        // without memory cache
+        3 => match crate::bindings::inference::run_inference_wo_memoryshare_workloads(
+            &dataset,
+            &condition,
+            &config_file,
+            &col_cardinalities_file,
+            &model_path,
+            &sql,
+            batch_size,
+        ) {
+            Ok(_) => serde_json::json!("ok").to_string(),
+            Err(e) => serde_json::json!({ "error": format!("Error: {}", e) }).to_string(),
+        },
+
+        // invesgate memory usage
+        4 => match crate::bindings::inference::invesgate_memory_usage(
+            &dataset,
+            &condition,
+            &config_file,
+            &col_cardinalities_file,
+            &model_path,
+            &sql,
+            batch_size,
+        ) {
+            Ok(_) => serde_json::json!("ok").to_string(),
+            Err(e) => serde_json::json!({ "error": format!("Error: {}", e) }).to_string(),
+        },
+
+        // invesgate memory usage
+        5 => match crate::bindings::inference::invesgate_memory_usage_record_only(
+            &dataset,
+            &condition,
+            &config_file,
+            &col_cardinalities_file,
+            &model_path,
+            &sql,
+            batch_size,
+        ) {
+            Ok(_) => serde_json::json!("ok").to_string(),
+            Err(e) => serde_json::json!({ "error": format!("Error: {}", e) }).to_string(),
+        },
+
+        _ => serde_json::json!({ "error": "Invalid function number" }).to_string(),
+    }
 }

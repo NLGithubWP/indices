@@ -22,6 +22,9 @@ echo $PYTHONPATH
 export PYTHONPATH=$PYTHONPATH:/home/xingnaili/Trails/internal/ml/
 export PYTHONPATH=$PYTHONPATH:/home/xingnaili/Trails/internal/ml/model_slicing/
 export PYTHONPATH=$PYTHONPATH:/home/xingnaili/Trails/internal/ml/model_slicing/algorithm/
+export PYTHONPATH=$PYTHONPATH:/home/xingnaili/Trails/internal/ml/model_slicing/algorithm/src/
+export PYTHONPATH=$PYTHONPATH:/home/xingnaili/Trails/internal/ml/model_slicing/algorithm/src/model/
+
 
 
 /project/Trails/internal/ml/
@@ -95,7 +98,7 @@ docker exec -it moe_inf bash
 
 
 
-# 12 Run in database
+# Load data
 
 Config the database runtime
 
@@ -155,6 +158,10 @@ bash /project/Trails/internal/ml/model_selection/scripts/database/load_data_to_d
 
 # diabetes
 bash /project/Trails/internal/ml/model_selection/scripts/database/load_data_to_db_int.sh /project/data_all/diabetes diabetes
+
+
+# avazu
+bash /project/Trails/internal/ml/model_selection/scripts/database/load_data_to_db_int.sh /project/data_all/avazu_libsvm avazu
 ```
 
 Verify data is in the DB
@@ -166,94 +173,29 @@ Verify data is in the DB
 SELECT * FROM frappe_train LIMIT 10;
 ```
 
-Config
+# Config Extension
 
 ```sql
+psql -h localhost -p 28814 -U postgres -d pg_extension
+# record the necessary func above and then copy it to following
+rm /home/postgres/.pgrx/14.11/pgrx-install/share/extension/pg_extension--0.1.0.sql
+vi /home/postgres/.pgrx/14.11/pgrx-install/share/extension/pg_extension--0.1.0.sql
+
 # after run the pgrx, then edie the sql
 # generate schema
-cargo pgrx schema >> /home/postgres/.pgrx/14.9/pgrx-install/share/extension/pg_extension--0.1.0.sql
+cargo pgrx schema >> /home/postgres/.pgrx/14.11/pgrx-install/share/extension/pg_extension--0.1.0.sql --rel
 
-
--- src/lib.rs:266
--- pg_extension::model_init
-CREATE  FUNCTION "model_init"(
-	"condition" TEXT, /* alloc::string::String */
-	"config_file" TEXT, /* alloc::string::String */
-	"col_cardinalities_file" TEXT, /* alloc::string::String */
-	"model_path" TEXT /* alloc::string::String */
-) RETURNS TEXT /* alloc::string::String */
-IMMUTABLE STRICT PARALLEL SAFE
-LANGUAGE c /* Rust */
-AS 'MODULE_PATHNAME', 'model_init_wrapper';
-
--- src/lib.rs:242
--- pg_extension::inference_shared_write_once_int
-CREATE  FUNCTION "inference_shared_write_once_int"(
-	"dataset" TEXT, /* alloc::string::String */
-	"condition" TEXT, /* alloc::string::String */
-	"config_file" TEXT, /* alloc::string::String */
-	"col_cardinalities_file" TEXT, /* alloc::string::String */
-	"model_path" TEXT, /* alloc::string::String */
-	"sql" TEXT, /* alloc::string::String */
-	"batch_size" INT /* i32 */
-) RETURNS TEXT /* alloc::string::String */
-IMMUTABLE STRICT PARALLEL SAFE
-LANGUAGE c /* Rust */
-AS 'MODULE_PATHNAME', 'inference_shared_write_once_int_wrapper';
-
--- src/lib.rs:219
--- pg_extension::inference_shared_write_once
-CREATE  FUNCTION "inference_shared_write_once"(
-	"dataset" TEXT, /* alloc::string::String */
-	"condition" TEXT, /* alloc::string::String */
-	"config_file" TEXT, /* alloc::string::String */
-	"col_cardinalities_file" TEXT, /* alloc::string::String */
-	"model_path" TEXT, /* alloc::string::String */
-	"sql" TEXT, /* alloc::string::String */
-	"batch_size" INT /* i32 */
-) RETURNS TEXT /* alloc::string::String */
-IMMUTABLE STRICT PARALLEL SAFE
-LANGUAGE c /* Rust */
-AS 'MODULE_PATHNAME', 'inference_shared_write_once_wrapper';
-
--- src/lib.rs:196
--- pg_extension::inference_shared
-CREATE  FUNCTION "inference_shared"(
-	"dataset" TEXT, /* alloc::string::String */
-	"condition" TEXT, /* alloc::string::String */
-	"config_file" TEXT, /* alloc::string::String */
-	"col_cardinalities_file" TEXT, /* alloc::string::String */
-	"model_path" TEXT, /* alloc::string::String */
-	"sql" TEXT, /* alloc::string::String */
-	"batch_size" INT /* i32 */
-) RETURNS TEXT /* alloc::string::String */
-IMMUTABLE STRICT PARALLEL SAFE
-LANGUAGE c /* Rust */
-AS 'MODULE_PATHNAME', 'run_inference_shared_wrapper';
-
--- src/lib.rs:173
--- pg_extension::inference
-CREATE  FUNCTION "inference"(
-	"dataset" TEXT, /* alloc::string::String */
-	"condition" TEXT, /* alloc::string::String */
-	"config_file" TEXT, /* alloc::string::String */
-	"col_cardinalities_file" TEXT, /* alloc::string::String */
-	"model_path" TEXT, /* alloc::string::String */
-	"sql" TEXT, /* alloc::string::String */
-	"batch_size" INT /* i32 */
-) RETURNS TEXT /* alloc::string::String */
-IMMUTABLE STRICT PARALLEL SAFE
-LANGUAGE c /* Rust */
-AS 'MODULE_PATHNAME', 'run_inference_wrapper';
-
-
-# record the necessary func above and then copy it to following
-rm /home/postgres/.pgrx/14.9/pgrx-install/share/extension/pg_extension--0.1.0.sql
-vi /home/postgres/.pgrx/14.9/pgrx-install/share/extension/pg_extension--0.1.0.sql
 
 # then drop/create extension
 DROP EXTENSION IF EXISTS pg_extension;
 CREATE EXTENSION pg_extension;
+
+cd /home/postgres/.pgrx/data-14/trails_log_folder
+
+
+# copy the file from server to local host
+docker cp moe_inf:/home/postgres/.pgrx/data-14/trails_log_folder ./
+scp -r xingnaili@panda.d2.comp.nus.edu.sg:/home/xingnaili/Trails/trails_log_folder .
 ```
 
 Examples
@@ -642,13 +584,45 @@ FROM diabetes_int_train;
 INSERT INTO hcdr_int_train (label,col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12,col13,col14,col15,col16,col17,col18,col19,col20,col21,col22,col23,col24,col25,col26,col27,col28,col29,col30,col31,col32,col33,col34,col35,col36,col37,col38,col39,col40,col41,col42,col43,col44,col45,col46,col47,col48,col49,col50,col51,col52,col53,col54,col55,col56,col57,col58,col59,col60,col61,col62,col63,col64,col65,col66,col67,col68,col69)
 SELECT label,col1,col2,col3,col4,col5,col6,col7,col8,col9,col10,col11,col12,col13,col14,col15,col16,col17,col18,col19,col20,col21,col22,col23,col24,col25,col26,col27,col28,col29,col30,col31,col32,col33,col34,col35,col36,col37,col38,col39,col40,col41,col42,col43,col44,col45,col46,col47,col48,col49,col50,col51,col52,col53,col54,col55,col56,col57,col58,col59,col60,col61,col62,col63,col64,col65,col66,col67,col68,col69
 FROM hcdr_int_train;
-
-
 ```
 
 
 
 # Baseline System & SAMS
+
+Logs at `/home/postgres/.pgrx/data-14/trails_log_folder`
+
+## Avazu
+
+Baselines
+
+```bash
+# Avazu
+CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/avazu/dnn_K16 --device cpu --dataset avazu --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/avazu_padding.json --target_batch 100000 --with_join 0
+```
+
+System
+
+```sql
+# read int data
+SELECT model_init(
+    '{}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/avazu_padding.json',
+    '/project/tensor_log/avazu/dnn_K16'
+);
+SELECT inference_shared_write_once_int(
+    'avazu',
+    '{}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/avazu_padding.json',
+    '/project/tensor_log/avazu/dnn_K16',
+    '',
+    100000
+);
+```
+
+
 
 ## Frappe
 
@@ -834,7 +808,7 @@ SELECT inference_shared_write_once_int(
 
 ```sql
 # Bank
-CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/census/dnn_K16 --device cpu --dataset census --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/census_col_cardinalities  --target_batch 100000
+CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/census/dnn_K16 --device cpu --dataset census --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/census_col_cardinalities  --target_batch 100000 --with_join 1
 
 SELECT model_init(
     '{}',
@@ -851,13 +825,23 @@ SELECT inference_shared_write_once_int(
     '',
     100000
 );
+
+SELECT run_inference_shared_memory_write_once_int_join(
+    'census',
+    '{}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/census_col_cardinalities',
+    '/project/tensor_log/census/dnn_K16',
+    '',
+    100000
+);
 ```
 
 ## Credit
 
 ```sql
 # Bank
-CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/credit/dnn_K16_epoch50 --device cpu --dataset credit --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/credit_col_cardinalities  --target_batch 100000
+CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/credit/dnn_K16_epoch50 --device cpu --dataset credit --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/credit_col_cardinalities  --target_batch 100000 --with_join 1
 
 SELECT model_init(
     '{}',
@@ -874,13 +858,23 @@ SELECT inference_shared_write_once_int(
     '',
     100000
 );
+
+SELECT run_inference_shared_memory_write_once_int_join(
+    'credit',
+    '{}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/credit_col_cardinalities',
+    '/project/tensor_log/credit/dnn_K16_epoch50',
+    '',
+    100000
+);
 ```
 
 ## Diabetes
 
 ```sql
 # Bank
-CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/diabetes/dnn_K16_epoch50 --device cpu --dataset diabetes --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/diabetes_col_cardinalities  --target_batch 100000
+CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/diabetes/dnn_K16_epoch50 --device cpu --dataset diabetes --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/diabetes_col_cardinalities  --target_batch 100000 --with_join 1
 
 SELECT model_init(
     '{}',
@@ -888,7 +882,18 @@ SELECT model_init(
     '/project/Trails/internal/ml/model_slicing/data/diabetes_col_cardinalities',
     '/project/tensor_log/diabetes/dnn_K16_epoch50'
 );
+
 SELECT inference_shared_write_once_int(
+    'diabetes',
+    '{}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/diabetes_col_cardinalities',
+    '/project/tensor_log/diabetes/dnn_K16_epoch50',
+    '',
+    100000
+);
+
+SELECT run_inference_shared_memory_write_once_int_join(
     'diabetes',
     '{}',
     '/project/Trails/internal/ml/model_selection/config.ini',
@@ -899,11 +904,76 @@ SELECT inference_shared_write_once_int(
 );
 ```
 
+SPJ query
+
+Duplicate data first
+
+```sql
+INSERT INTO diabetes_int_train
+(label, col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11, col12, col13, col14, col15, col16, col17, col18, col19, col20, col21, col22, col23, col24, col25, col26, col27, col28, col29, col30, col31, col32, col33, col34, col35, col36, col37, col38, col39, col40, col41, col42, col43, col44, col45, col46, col47, col48)
+SELECT label, col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11, col12, col13, col14, col15, col16, col17, col18, col19, col20, col21, col22, col23, col24, col25, col26, col27, col28, col29, col30, col31, col32, col33, col34, col35, col36, col37, col38, col39, col40, col41, col42, col43, col44, col45, col46, col47, col48
+FROM diabetes_int_train
+WHERE col3 = 10 AND col4 = 17;
+
+```
+
+Then run the sql
+
+```sql
+
+# SPJ
+# This is to run such sql to select subdatasets
+select count(*) from diabetes_int_train where col3=10 and col4=17;
+SELECT count(*) FROM diabetes_int_train_left l
+             JOIN diabetes_int_train_right r ON l.id = r.id
+             where col3=10 and col4=17;
+
+CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/diabetes/dnn_K16_epoch50 --device cpu --dataset diabetes --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/diabetes_col_cardinalities  --target_batch 100000 --with_join 1
+
+
+SELECT model_init(
+    '{"2":10, "3":17}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/diabetes_col_cardinalities',
+    '/project/tensor_log/diabetes/dnn_K16_epoch50'
+);
+
+SELECT run_inference_shared_memory_write_once_int_join(
+    'diabetes',
+    '{"2":10, "3":17}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/diabetes_col_cardinalities',
+    '/project/tensor_log/diabetes/dnn_K16_epoch50',
+    'where col3=10 and col4=17',
+    100000
+);
+
+
+# only selection
+CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/diabetes/dnn_K16_epoch50 --device cpu --dataset diabetes --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/diabetes_col_cardinalities  --target_batch 100000 --with_join 0
+
+SELECT inference_shared_write_once_int(
+    'diabetes',
+    '{"2":10, "3":17}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/diabetes_col_cardinalities',
+    '/project/tensor_log/diabetes/dnn_K16_epoch50',
+    'where col3=10 and col4=17',
+    100000
+);
+
+
+
+
+```
+
+
+
 ## Hcdr
 
 ```sql
 # Bank
-CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/hcdr/dnn_K16 --device cpu --dataset hcdr --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/hcdr_col_cardinalities  --target_batch 100000
+CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/hcdr/dnn_K16 --device cpu --dataset hcdr --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/hcdr_col_cardinalities  --target_batch 100000  --with_join 1
 
 SELECT model_init(
     '{}',
@@ -920,7 +990,75 @@ SELECT inference_shared_write_once_int(
     '',
     100000
 );
+
+SELECT run_inference_shared_memory_write_once_int_join(
+    'hcdr',
+    '{}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/hcdr_col_cardinalities',
+    '/project/tensor_log/hcdr/dnn_K16',
+    '',
+    100000
+);
 ```
+
+SPJ query
+
+Duplicate data first
+
+```sql
+INSERT INTO hcdr_int_train
+(label, col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11, col12, col13, col14, col15, col16, col17, col18, col19, col20, col21, col22, col23, col24, col25, col26, col27, col28, col29, col30, col31, col32, col33, col34, col35, col36, col37, col38, col39, col40, col41, col42, col43, col44, col45, col46, col47, col48, col49, col50, col51, col52, col53, col54, col55, col56, col57, col58, col59, col60, col61, col62, col63, col64, col65, col66, col67, col68, col69)
+SELECT label, col1, col2, col3, col4, col5, col6, col7, col8, col9, col10, col11, col12, col13, col14, col15, col16, col17, col18, col19, col20, col21, col22, col23, col24, col25, col26, col27, col28, col29, col30, col31, col32, col33, col34, col35, col36, col37, col38, col39, col40, col41, col42, col43, col44, col45, col46, col47, col48, col49, col50, col51, col52, col53, col54, col55, col56, col57, col58, col59, col60, col61, col62, col63, col64, col65, col66, col67, col68, col69
+FROM hcdr_int_train
+WHERE col33 = 383 AND col38 = 425;
+```
+
+Then run the sql
+
+
+
+```sql
+# SPJ
+# This is to run such sql to select subdatasets
+select count(*) from hcdr_int_train where col33=383 and col38 =425;
+
+CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/hcdr/dnn_K16 --device cpu --dataset hcdr --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/hcdr_col_cardinalities  --target_batch 100000  --with_join 1
+
+SELECT model_init(
+    '{"32":383, "37":425}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/hcdr_col_cardinalities',
+    '/project/tensor_log/hcdr/dnn_K16'
+);
+
+
+SELECT run_inference_shared_memory_write_once_int_join(
+    'hcdr',
+    '{"32":383, "37":425}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/hcdr_col_cardinalities',
+    '/project/tensor_log/hcdr/dnn_K16',
+    'where col33=383 and col38 =425',
+    100000
+);
+
+# only selection
+
+CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/hcdr/dnn_K16 --device cpu --dataset hcdr --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/hcdr_col_cardinalities  --target_batch 100000  --with_join 0
+
+SELECT inference_shared_write_once_int(
+    'hcdr',
+    '{"32":383, "37":425}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/hcdr_col_cardinalities',
+    '/project/tensor_log/hcdr/dnn_K16',
+    'where col33=383 and col38 =425',
+    100000
+);
+```
+
+
 
 # Data Scale
 
@@ -955,6 +1093,8 @@ CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/algorithm/baseline.py
 
 ## Optimizations
 
+### native id:value format
+
 ```bash
 
 # 1. with all opt
@@ -1006,7 +1146,7 @@ SELECT inference(
 CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/algorithm/baseline.py /hdd1/sams/tensor_log/frappe/dnn_K16_alpha4 --device cpu --dataset frappe --batch_size 100000 --col_cardinalities_file frappe_col_cardinalities --target_batch 100000
 ```
 
-Int dataset
+### Only id format
 
 ```bash
 
@@ -1060,3 +1200,56 @@ CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/algorithm/baseline.py
 
 CUDA_VISIBLE_DEVICES=-1 python ./internal/ml/model_slicing/baseline_int.py /hdd1/sams/tensor_log/credit/dnn_K16_epoch50 --device cpu --dataset credit --batch_size 100000 --col_cardinalities_file ./internal/ml/model_slicing/data/credit_col_cardinalities  --target_batch 100000
 ```
+
+### Memory, Response Time
+
+```sql
+# 1. with all opts
+SELECT run_inference_profiling(
+  1,
+    'avazu',
+    '{}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/avazu_padding.json',
+    '/project/tensor_log/avazu/dnn_K16',
+    '',
+    10000
+);
+
+# 2. w/o cache
+SELECT run_inference_profiling(
+  2,
+    'avazu',
+    '{}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/avazu_padding.json',
+    '/project/tensor_log/avazu/dnn_K16',
+    '',
+    10000
+);
+
+# 3. w/o memory share
+SELECT run_inference_profiling(
+  3,
+    'avazu',
+    '{}',
+    '/project/Trails/internal/ml/model_selection/config.ini',
+    '/project/Trails/internal/ml/model_slicing/data/avazu_padding.json',
+    '/project/tensor_log/avazu/dnn_K16',
+    '',
+    10000
+);
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
